@@ -43,7 +43,6 @@ def main():
     #     line = f.readline()
     #     if line == '':
     #         break
-    #     # img = cv2.imread(args.images_directory + '/' + line[:-1])
     #     num_faces = int(f.readline())
     #     if num_faces == 0:
     #         f.readline()
@@ -89,6 +88,41 @@ def main():
     #     stats['valid'] += num_faces - num_invalid
     # f.close()
     # pd.DataFrame(stats).to_excel('../../Raw data/WIDER_train/stats.xlsx')
+
+    # # Print out some images with invalid faces for inspection
+    # count = 0
+    # f = open(args.annotation_file)
+    # while True:
+    #     invalid = []
+    #     line = f.readline()
+    #     if line == '':
+    #         break
+    #     num_faces = int(f.readline())
+    #     if num_faces == 0:
+    #         f.readline()
+    #         continue
+    #     bboxes = np.zeros((num_faces, 10), np.uint16)
+    #     for i in range(num_faces):
+    #         bboxes[i] = f.readline()[:-2].split(' ')
+    #         if bboxes[i, 7] == 1:
+    #             invalid.append(i)
+    #     if len(invalid) > 0:
+    #         if np.random.random() < 0.1:
+    #             count += 1
+    #             img = cv2.imread(args.images_directory + '/' + line[:-1])
+    #             for i in range(num_faces):
+    #                 top_left = (bboxes[i, 0], bboxes[i, 1])
+    #                 bottom_right = (bboxes[i, 0] + bboxes[i, 2], bboxes[i, 1] + bboxes[i, 3])
+    #                 if i in invalid:
+    #                     cv2.rectangle(img, top_left, bottom_right, (0, 0, 255))
+    #                 else:
+    #                     cv2.rectangle(img, top_left, bottom_right, (0, 255, 0))
+    #             cv2.imshow('image', img)
+    #             cv2.waitKey(0)
+    #             cv2.destroyAllWindows
+    #     if count == 10:
+    #         break
+    # f.close()
 
 if __name__ == "__main__":
     main()
