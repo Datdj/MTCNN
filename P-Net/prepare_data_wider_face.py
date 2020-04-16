@@ -135,17 +135,31 @@ def main():
     #         break
     # f.close()
 
+    # Prepare for saving
+    if not path.exists(args.output_directory):
+        os.mkdir(args.output_directory)
+    if not path.exists(args.output_directory + '/positives'):
+        os.mkdir(args.output_directory + '/positives')
+    if not path.exists(args.output_directory + '/negatives'):
+        os.mkdir(args.output_directory + '/negatives')
+    if not path.exists(args.output_directory + '/part faces'):
+        os.mkdir(args.output_directory + '/part faces')
+
     # Open the annotation file
     f = open(args.annotation_file)
-    
-    # Use this to name the output images
-    count = 0
 
     # These are for storing the annotations of bounding box regression task
-    pos_bboxes = np.zeros((0, 4), np.uint8)
-    par_bboxes = np.zeros((0, 4), np.uint8)
+    pos_bboxes = np.zeros((0, 4), np.float)
+    par_bboxes = np.zeros((0, 4), np.float)
+
+    # Name the file
+    pos_name = 0
+    neg_name = 0
+    par_name = 0
 
     # Start reading the file
+    count = 0
+    window = np.zeros(3, np.int32)
     while True:
         
         # Read the file line by line
@@ -176,143 +190,117 @@ def main():
         # Remove invalid faces
         if len(invalid) > 0:
             bboxes = np.delete(bboxes, invalid, 0)
-
-        # Calculate the window size for cropping
-        crop_size = max(np.max(bboxes[:, 2:4]), 12)
-
-        # Skip if not a single face can cover more than 65% of the window (meaning no positive for this one)
-        if np.max(bboxes[:, 2] * bboxes[:, 3]) <= crop_size * crop_size * 0.65:
-            count += 1
-            continue
+            if bboxes.shape[0] == 0:
+                continue
 
         # Read the image
         img = cv2.imread(args.images_directory + '/' + line[:-1])
 
-        # Prepare for saving
-        if not path.exists(args.output_directory):
-            os.mkdir(args.output_directory)
-        if not path.exists(args.output_directory + '/positives'):
-            os.mkdir(args.output_directory + '/positives')
-        if not path.exists(args.output_directory + '/negatives'):
-            os.mkdir(args.output_directory + '/negatives')
-        if not path.exists(args.output_directory + '/part faces'):
-            os.mkdir(args.output_directory + '/part faces')
+        # For every ground truth face, create a positive, a part face and a negative
+        for bbox in bboxes:
+            window[2] = max(bbox[2], bbox[3], 12)
+            max_y, max_x = np.array(img.shape[:-1]) - window[2]
 
-        # These are the upper limits of the top left point of the window
-        max_y, max_x = np.array(img.shape[:-1]) - crop_size + 1
+            # See 0--Parade/0_Parade_Parade_0_939.jpg
+            if max_x < 0 or max_y < 0:
+                continue
 
-        # Skip this image if max_x or max_y <= 0 (See 0--Parade/0_Parade_Parade_0_939.jpg)
-        if max_x <= 0 or max_y <= 0:
-            count += 1
-            continue
+            # Part Face
+            if bbox[2] * bbox[3] >= window[2] ** 2 * 0.4:
+                for i in range(10):
+                    window[0] = max(0, min(bbox[0] + ((np.random.random() * 2 - 1) * window[2]).astype(np.int32), max_x))
+                    window[1] = max(0, min(bbox[1] + ((np.random.random() * 2 - 1) * window[2]).astype(np.int32), max_y))
+                    iou = find_iou(window, bbox.reshape(1, 4))[0]
+                    if 0.4 <= iou and iou <= 0.65:
 
-        # Use this to make sure we have 1 of each kind of annotation from this image
-        okay = np.zeros(3, bool)
+                        # Prepare bounding box regression annotation
+                        top_left = np.maximum(window[:2], bbox[:2]) - window[:2]
+                        bottom_right = np.minimum(window[:2] + window[2] - 1, bbox[:2] + bbox[2:] - 1) - window[:2]
+                        par_bbox = (np.append(top_left, bottom_right - top_left) / (window[2] - 1)).reshape((1,4))
+                        par_bboxes = np.append(par_bboxes, par_bbox, 0)
+                        
+                        # Resize the cropped image to 12 x 12 if necessary
+                        result = img[window[1]:window[1] + window[2], window[0]:window[0] + window[2], :]
+                        if window[2] > 12:
+                            result = cv2.resize(result, (12, 12), interpolation=cv2.INTER_AREA)
 
-        # Skip if not a single face can cover more than 65% of the window (meaning no positive for this one)
-        if np.max(bboxes[:, 2] * bboxes[:, 3]) <= crop_size * crop_size * 0.65:
-            okay[2] = True
+                        # Save the part face
+                        cv2.imwrite(
+                            args.output_directory + '/part faces/par_' + str(par_name).zfill(6) + '.jpg',
+                            result
+                        )
+                        par_name += 1
+                        break
 
-        # Start cropping
-        num_tries = 0
-        while True:
+                # Positive
+                if bbox[2] * bbox[3] > window[2] ** 2 * 0.65:
+                    for i in range(10):
+                        window[0] = max(0, min(bbox[0] + ((np.random.random() - 0.5) * window[2]).astype(np.int32), max_x))
+                        window[1] = max(0, min(bbox[1] + ((np.random.random() - 0.5) * window[2]).astype(np.int32), max_y))
+                        iou = find_iou(window, bbox.reshape(1, 4))[0]
+                        if iou > 0.65:
 
-            # Create a random window
-            window = np.zeros(4, np.int32)
-            window[0] = np.random.randint(0, max_x)
-            window[1] = np.random.randint(0, max_y)
-            window[2:4] = crop_size
+                            # Prepare bounding box regression annotation
+                            top_left = np.maximum(window[:2], bbox[:2]) - window[:2]
+                            bottom_right = np.minimum(window[:2] + window[2] - 1, bbox[:2] + bbox[2:] - 1) - window[:2]
+                            pos_bbox = (np.append(top_left, bottom_right - top_left) / (window[2] - 1)).reshape((1,4))
+                            pos_bboxes = np.append(pos_bboxes, pos_bbox, 0)
 
-            # Calculate the Intersection over Union (IoU) of the window with all the faces in the image
-            lowest = np.minimum(bboxes[:, :2], window[:2])
-            highest = np.maximum(bboxes[:, :2] + bboxes[:, 2:], window[:2] + window[2:])
-            intersection = highest - lowest - bboxes[:, 2:] - window[2:]
-            is_not_overlapped = intersection >= 0
-            intersection[is_not_overlapped] = 0
-            intersection *= -1
-            intersection = intersection[:, 0] * intersection[:, 1]
-            union = bboxes[:, 2] * bboxes[:, 3] + window[2] * window[3] - intersection
-            iou = intersection / union
+                            # Resize the cropped image to 12 x 12 if necessary
+                            result = img[window[1]:window[1] + window[2], window[0]:window[0] + window[2], :]
+                            if window[2] > 12:
+                                result = cv2.resize(result, (12, 12), interpolation=cv2.INTER_AREA)
 
-            # Check if the window is a negative
-            if np.max(iou) < 0.3 and okay[0] == False:
-                okay[0] = True
-
-                # Resize the cropped image to 12 x 12
-                if crop_size > 12:
-                    resized = cv2.resize(img[window[1]:window[1] + window[3], window[0]:window[0] + window[2], :],
-                    (12, 12),
-                    interpolation=cv2.INTER_AREA
-                )
-
-                # Save the negative
-                cv2.imwrite(
-                    args.output_directory + '/negatives/neg_' + str(count) + '.jpg',
-                    resized
-                )
+                            # Save the positive
+                            cv2.imwrite(
+                                args.output_directory + '/positives/pos_' + str(pos_name).zfill(6) + '.jpg',
+                                result
+                            )
+                            pos_name += 1
+                            break
             
-            # or if the window is a part face
-            elif 0.4 <= np.max(iou) and np.max(iou) <= 0.65 and okay[1] == False:
-                okay[1] = True
+            # Negative
+            for i in range(10):
+                window[0] = np.random.randint(0, max_x + 1)
+                window[1] = np.random.randint(0, max_y + 1)
+                ious = find_iou(window, bboxes)
+                if np.max(ious) < 0.3:
 
-                # Prepare bounding box regression annotation
-                top_left = np.maximum(window[:2], bboxes[np.argmax(iou), :2]) - window[:2]
-                bottom_right = np.minimum(window[:2] + crop_size, bboxes[np.argmax(iou), :2] + bboxes[np.argmax(iou), 2:]) - window[:2]
-                par_bbox = (np.append(top_left, bottom_right - top_left) / crop_size * 12).astype(np.uint8).reshape((1,4))
-                par_bboxes = np.append(par_bboxes, par_bbox, 0)
-                
-                # Resize the cropped image to 12 x 12
-                if crop_size > 12:
-                    resized = cv2.resize(img[window[1]:window[1] + window[3], window[0]:window[0] + window[2], :],
-                    (12, 12),
-                    interpolation=cv2.INTER_AREA
-                )
+                    # Resize the cropped image to 12 x 12 if necessary
+                    result = img[window[1]:window[1] + window[2], window[0]:window[0] + window[2], :]
+                    if window[2] > 12:
+                        result = cv2.resize(result, (12, 12), interpolation=cv2.INTER_AREA)
 
-                # Save the part face
-                cv2.imwrite(
-                    args.output_directory + '/part faces/par_' + str(count) + '.jpg',
-                    resized
-                )
-                
-            # or if the window is a positive
-            elif np.max(iou) > 0.65 and okay[2] == False:
-                okay[2] = True
+                    # Save the negative
+                    cv2.imwrite(
+                        args.output_directory + '/negatives/neg_' + str(neg_name).zfill(6) + '.jpg',
+                        result
+                    )
+                    neg_name += 1
+                    break
 
-                # Prepare bounding box regression annotation
-                top_left = np.maximum(window[:2], bboxes[np.argmax(iou), :2]) - window[:2]
-                bottom_right = np.minimum(window[:2] + crop_size, bboxes[np.argmax(iou), :2] + bboxes[np.argmax(iou), 2:]) - window[:2]
-                pos_bbox = (np.append(top_left, bottom_right - top_left) / crop_size * 12).astype(np.uint8).reshape((1,4))
-                pos_bboxes = np.append(pos_bboxes, pos_bbox, 0)
-
-                # Resize the cropped image to 12 x 12
-                if crop_size > 12:
-                    resized = cv2.resize(img[window[1]:window[1] + window[3], window[0]:window[0] + window[2], :],
-                    (12, 12),
-                    interpolation=cv2.INTER_AREA
-                )
-
-                # Save the positive
-                cv2.imwrite(
-                    args.output_directory + '/positives/pos_' + str(count) + '.jpg',
-                    resized
-                )
-            
-            # Stop the loop if we have enough annotations from this image
-            if np.count_nonzero(okay) == 3 or num_tries == 500000:
-                break
-            
-            # Next try
-            num_tries += 1
-        
-        # Let's move on to the next image
+        # Print out the progress
         count += 1
+        print(str(count) + '/12880 - ' + str(round(count / 12880 * 100)) + '%', end='\r')
 
     # Always close the file
     f.close()
 
     # Save the bounding box annotations
-    pd.DataFrame(par_bboxes).to_excel(args.output_directory + '/part faces/part_faces.xlsx')
-    pd.DataFrame(pos_bboxes).to_excel(args.output_directory + '/positives/positives.xlsx')
+    pd.DataFrame(par_bboxes).to_excel(args.output_directory + '/part_faces.xlsx')
+    pd.DataFrame(pos_bboxes).to_excel(args.output_directory + '/positives.xlsx')
+
+# Calculate the Intersection over Union
+def find_iou(window, bboxes):
+    lowest = np.minimum(bboxes[:, :2], window[:2])
+    highest = np.maximum(bboxes[:, :2] + bboxes[:, 2:], window[:2] + window[2])
+    intersection = highest - lowest - bboxes[:, 2:] - window[2]
+    is_not_overlapped = intersection >= 0
+    intersection[is_not_overlapped] = 0
+    intersection *= -1
+    intersection = intersection[:, 0] * intersection[:, 1]
+    union = bboxes[:, 2] * bboxes[:, 3] + window[2] ** 2 - intersection
+    return intersection / union
 
 if __name__ == "__main__":
     main()
