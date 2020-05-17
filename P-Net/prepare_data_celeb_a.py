@@ -5,6 +5,7 @@ import pandas as pd
 from os import path
 import os
 from tqdm import tqdm
+from numpy.random import default_rng
 
 def main():
 
@@ -35,9 +36,11 @@ def main():
         '--output-directory',
         type=str,
         help='The path to the folder where you want to save your output',
-        required=True
+        default='./data/temp'
     )
     args = parser.parse_args()
+
+    rng = default_rng()
 
     # # Show some images with their respective bounding boxes
     # f = open(args.bounding_boxes)
@@ -56,9 +59,16 @@ def main():
 
     # Prepare saving folder
     if not path.exists(args.output_directory):
-        os.mkdir(args.output_directory)
+        os.makedirs(args.output_directory)
     if not path.exists(args.output_directory + '/landmarks'):
         os.mkdir(args.output_directory + '/landmarks')
+
+    # Use this to save images as numpy file
+    lm_images = np.zeros((0, 12, 12, 3), np.uint8)
+
+    # Save the original windows
+    lm_origin_windows = np.zeros((0, 3), np.int32)
+    lm_origin_names = []
 
     # Open the annotation files
     bb = open(args.bounding_boxes)
@@ -96,7 +106,7 @@ def main():
             nose_y = landmarks[2, 1]
             y1 = bbox[1]
             y2 = bbox[1] + bbox[3] - 1
-            window[1] = helper(y1, y2, nose_y, delta, window[2])
+            window[1] = helper(y1, y2, nose_y, delta, window[2], rng)
         elif bbox[2] > bbox[3]:
             delta = bbox[2] - bbox[3]
             window[1] = bbox[1]
@@ -104,7 +114,7 @@ def main():
             nose_x = landmarks[2, 0]
             x1 = bbox[0]
             x2 = x1 + bbox[2] - 1
-            window[0] = helper(x1, x2, nose_x, delta, window[2])
+            window[0] = helper(x1, x2, nose_x, delta, window[2], rng)
         else:
             window = bbox[:3]
 
@@ -123,6 +133,9 @@ def main():
         )
 
         # Save the image
+        lm_images = np.concatenate((lm_images, resized_window.reshape((1, 12, 12, 3))), 0)
+        lm_origin_windows = np.concatenate((lm_origin_windows, window.reshape((1, 3))), axis=0)
+        lm_origin_names.append(bb_line[0])
         cv2.imwrite(
             filename=args.output_directory + '/landmarks/' + bb_line[0],
             img=resized_window
@@ -135,11 +148,25 @@ def main():
     bb.close()
     lm.close()
 
-    # Save the normalized landmarks into an excel file
+    # Save the images
+    np.save(args.output_directory + '/lm_images.npy', lm_images)
+
+    # Save the original windows and file names
+    pd.DataFrame(
+        data={
+            'file_name': lm_origin_names,
+            'x': lm_origin_windows[:, 0],
+            'y': lm_origin_windows[:, 1],
+            'window_size': lm_origin_windows[:, 2]
+        }
+    ).to_excel(args.output_directory + '/lm_origin.xlsx')
+
+    # Save the normalized landmarks into an excel and numpy file
+    np.save(args.output_directory + '/landmarks.npy', norm_landmarks)
     pd.DataFrame(norm_landmarks).to_excel(args.output_directory + '/landmarks.xlsx')
 
 # An attempt at making the codes above look like less of a mess :v
-def helper(x1, x2, nose, delta, crop_size):
+def helper(x1, x2, nose, delta, crop_size, rng):
     left = nose - x1 + 1
     right = x2 - nose + 1
     if left > right:
@@ -158,7 +185,7 @@ def helper(x1, x2, nose, delta, crop_size):
             result = x1 + (delta2 / 2).astype(np.int32)
         else:
             return x1
-    return max(0, result + ((-0.05 + np.random.random() / 10) * crop_size).astype(np.int32))
+    return max(0, result + ((-0.05 + rng.random() / 10) * crop_size).astype(np.int32))
 
 if __name__ == "__main__":
     main()
