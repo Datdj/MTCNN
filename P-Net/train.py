@@ -2,6 +2,8 @@ import numpy as np
 import tensorflow as tf
 from utils.data_augmentation import augment_and_zero_center
 from tensorflow.data import Dataset
+from model import pnet
+from utils.losses import BCE_with_sample_type_indicator, MSE_with_sample_type_indicator
 
 def main():
 
@@ -30,6 +32,9 @@ def main():
     train_dataset = train_dataset.shuffle(496883).batch(2, drop_remainder=True).repeat()
     train_dataset = train_dataset.map(augment_and_zero_center(mean=mean_x_train))
 
+    # Load and compile the model
+    model = pnet()
+    model.compile(loss=[BCE_with_sample_type_indicator, MSE_with_sample_type_indicator, MSE_with_sample_type_indicator], loss_weights=[1, 0.5, 0.5])
     
 
 if __name__ == "__main__":
