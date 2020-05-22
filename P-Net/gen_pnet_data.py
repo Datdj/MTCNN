@@ -48,10 +48,10 @@ def main():
     origins = pd.concat([pos_origin, par_origin, neg_origin, lm_origin], ignore_index=True).drop(columns=['Unnamed: 0']).astype(dtype={'file_name': str, 'x': np.uint16, 'y': np.uint16, 'window_size': np.uint16})
 
     # Create classification labels
-    pos_class = np.concatenate((np.ones((num_pos, 2), dtype=np.int8), np.zeros((num_pos, 1), dtype=np.int8)), axis=1)
-    par_class = np.zeros((num_par, 3), dtype=np.int8)
-    neg_class = np.concatenate((np.ones((num_neg, 1), dtype=np.int8), np.zeros((num_neg, 1), dtype=np.int8), np.ones((num_neg, 1), dtype=np.int8)), axis=1)
-    lm_class = np.zeros((num_lm, 3), dtype=np.int8)
+    pos_class = np.concatenate((np.ones((num_pos, 2), dtype=np.uint8), np.zeros((num_pos, 1), dtype=np.uint8)), axis=1)
+    par_class = np.zeros((num_par, 3), dtype=np.uint8)
+    neg_class = np.concatenate((np.ones((num_neg, 1), dtype=np.uint8), np.zeros((num_neg, 1), dtype=np.uint8), np.ones((num_neg, 1), dtype=np.uint8)), axis=1)
+    lm_class = np.zeros((num_lm, 3), dtype=np.uint8)
     class_labels = np.concatenate((pos_class, par_class, neg_class, lm_class), axis=0)
 
     # Create bounding box regression labels
