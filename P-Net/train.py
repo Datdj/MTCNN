@@ -34,8 +34,16 @@ def main():
 
     # Load and compile the model
     model = pnet()
-    model.compile(loss=[BCE_with_sample_type_indicator, MSE_with_sample_type_indicator, MSE_with_sample_type_indicator], loss_weights=[1, 0.5, 0.5])
-    
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(),
+        loss=[
+            BCE_with_sample_type_indicator,
+            MSE_with_sample_type_indicator,
+            MSE_with_sample_type_indicator
+        ],
+        metrics=[[accuracy(), recall()], [], []],
+        loss_weights=[1, 0.5, 0.5]
+    )    
 
 if __name__ == "__main__":
     main()
