@@ -23,7 +23,7 @@ def accuracy(threshold=0.5):
             return count / total
         total = reduce_sum(y_true[:, 0])
         pred = tf.cast(y_pred[:, 1] >= threshold, dtype=tf.uint8) * y_true[:, 0]
-        matches = tf.cast(y_pred == y_true[:, 1], dtype=tf.uint8) * y_true[:, 0]
+        matches = tf.cast(pred == y_true[:, 1], dtype=tf.uint8) * y_true[:, 0]
         count = reduce_sum(matches)
         return tf.cond(total == 0, return_0_5, return_acc)
     return acc
