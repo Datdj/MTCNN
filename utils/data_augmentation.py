@@ -53,7 +53,7 @@ def augment_and_zero_center(mean):
             ],
             axis=1
         )
-        landmarks = tf.tensor_scatter_nd_update(landmarks, random_indices, flipped_lm)5
+        landmarks = tf.tensor_scatter_nd_update(landmarks, random_indices, flipped_lm)
 
         # Randomly adjust the hue
         random_indices = tf.where(tf.random.uniform([batch_size], 0, 2, tf.int32))
