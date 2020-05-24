@@ -5,29 +5,48 @@ from tensorflow.data import Dataset
 from model import pnet
 from utils.losses import BCE_with_sample_type_indicator, MSE_with_sample_type_indicator
 from utils.custom_metrics import accuracy_, recall_
-import datetime
+from datetime import datetime
+from tensorflow.keras.callbacks import TensorBoard, EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
+from dateutil import tz
+from os import path
+import os
 
 def main():
 
     parser = argparse.ArgumentParser(description='P-Net training.')
     parser.add_argument(
-        '-d',
         '--data-folder',
         type=str,
         help='The path to the folder that contains data',
         required=True
     )
     parser.add_argument(
-        '-bs',
         '--batch-size',
         type=int,
         help='Batch size',
         required=True
     )
     parser.add_argument(
-        '-e',
         '--num-epochs',
+        type=int,
         help='Number of epochs to train the model',
+        required=True
+    )
+    parser.add_argument(
+        '--early-stopping',
+        type=int,
+        help='After n epochs, if validation loss does not improve, stop training',
+        required=True
+    )
+    parser.add_argument(
+        '--lr-decay',
+        type=int,
+        help='After n epochs, if validation loss does not improve, reduce learning rate'
+    )
+    parser.add_argument(
+        '--models-directory',
+        type=str,
+        help='Where to save trained models',
         required=True
     )
     args = parser.parse_args()
@@ -60,9 +79,39 @@ def main():
     # Create validation dataset
     validation_dataset = Dataset.from_tensor_slices((x_validation, (y1_validation, y2_validation, y3_validation))).batch(args.batch_size, drop_remainder=True)
 
+    # Stop training if no improvements are made
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=args.early_stopping,
+        mode='min'
+    )
+
+    # Model checkpoints
+    model_checkpoint = ModelCheckpoint(
+        filepath=args.models_directory,
+        monitor='val_loss',
+        save_best_only=True,
+        mode='min',
+        save_weights_only=True,
+        save_freq='epoch'
+    )
+
+    # Learning rate decay
+    lr_decay = ReduceLROnPlateau(
+        monitor='val_loss',
+        factor=0.1,
+        patience=args.lr_decay,
+        mode='min'
+    )
+
     # Set up Tensorboard
-    log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+    if not path.exists('./log'):
+        os.mkdir('./log')
+    tensorboard = TensorBoard(
+        log_dir="./log/" + datetime.now(tz.gettz('UTC+7')).strftime("%Y-%m-%d_%H-%M-%S-%p"),
+        write_graph=False,
+        profile_batch=0
+    )
 
     # Load and compile the model
     model = pnet()
@@ -78,10 +127,10 @@ def main():
     )
 
     # Train the model
-    model.fit(
+    history = model.fit(
         x=train_dataset,
         epochs=num_epochs,
-        callbacks=[tensorboard_callback],
+        callbacks=[early_stopping, model_checkpoint, lr_decay, tensorboard],
         validation_data=validation_dataset
     )
 
