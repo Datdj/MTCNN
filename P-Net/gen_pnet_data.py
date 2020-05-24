@@ -78,8 +78,8 @@ def main():
     origins = origins.iloc[random_indices].reset_index(drop=True)
 
     # Split data into train, validation and test sets
-    split1 = round(0.9 * num_images)
-    split2 = round(0.95 * num_images)
+    split1 = round(0.8 * num_images)
+    split2 = round(0.9 * num_images)
     train_images = images[:split1]
     train_class_labels = class_labels[:split1]
     train_bb_labels = bb_labels[:split1]
