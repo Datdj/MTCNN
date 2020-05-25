@@ -16,7 +16,7 @@ def accuracy_(threshold=0.5):
     Return:
     - a function with the signature result = fn(y_true, y_pred)
     """
-    def accuracy(y_true, y_pred):
+    def _accuracy(y_true, y_pred):
         def return_0_5():
             return 0.5
         def return_acc():
@@ -26,7 +26,7 @@ def accuracy_(threshold=0.5):
         matches = tf.cast(pred == y_true[:, 1], dtype=tf.float32) * y_true[:, 0]
         count = reduce_sum(matches)
         return tf.cond(total == 0, return_0_5, return_acc)
-    return accuracy
+    return _accuracy
 
 def recall_(threshold=0.5):
     """
