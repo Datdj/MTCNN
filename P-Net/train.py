@@ -114,7 +114,7 @@ def main():
     )
 
     # Load and compile the model
-    model = pnet()
+    model = pnet(batch_size=args.batch_size)
     model.compile(
         optimizer=tf.keras.optimizers.Adam(),
         loss=[
