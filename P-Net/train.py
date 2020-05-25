@@ -3,7 +3,7 @@ import tensorflow as tf
 from utils.data_augmentation import augment_and_zero_center
 from tensorflow.data import Dataset
 from model import pnet
-from utils.losses import BCE_with_sample_type_indicator, MSE_with_sample_type_indicator
+from utils.losses import BCE_with_sti, MSE_with_sti
 from utils.custom_metrics import accuracy_, recall_
 from datetime import datetime
 from tensorflow.keras.callbacks import TensorBoard, EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
@@ -47,6 +47,12 @@ def main():
         '--models-directory',
         type=str,
         help='Where to save trained models',
+        required=True
+    )
+    parser.add_argument(
+        '--hard-sample-mining',
+        type=bool,
+        help='True will use online hard sample training',
         required=True
     )
     args = parser.parse_args()
@@ -113,14 +119,19 @@ def main():
         profile_batch=0
     )
 
+    if args.hard_sample_mining == True:
+        num_back = round(args.batch_size * 0.7)
+    else:
+        num_back = None
+
     # Load and compile the model
     model = pnet(batch_size=args.batch_size)
     model.compile(
         optimizer=tf.keras.optimizers.Adam(),
         loss=[
-            BCE_with_sample_type_indicator,
-            MSE_with_sample_type_indicator,
-            MSE_with_sample_type_indicator
+            BCE_with_sti(args.hard_sample_mining, num_back),
+            MSE_with_sti(args.hard_sample_mining, num_back),
+            MSE_with_sti(args.hard_sample_mining, num_back)
         ],
         metrics=[[accuracy_(), recall_()], None, None]
         loss_weights=[1, 0.5, 0.5]
