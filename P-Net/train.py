@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, '..')
+import argparse
 import numpy as np
 import tensorflow as tf
 from utils.data_augmentation import augment_and_zero_center
@@ -5,9 +8,7 @@ from tensorflow.data import Dataset
 from model import pnet
 from utils.losses import BCE_with_sti, MSE_with_sti
 from utils.custom_metrics import accuracy_, recall_
-from datetime import datetime
 from tensorflow.keras.callbacks import TensorBoard, EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
-from dateutil import tz
 from os import path
 import os
 
@@ -24,6 +25,12 @@ def main():
         '--batch-size',
         type=int,
         help='Batch size',
+        required=True
+    )
+    parser.add_argument(
+        '--learning-rate',
+        type=float,
+        help='Learning rate',
         required=True
     )
     parser.add_argument(
@@ -55,13 +62,32 @@ def main():
         help='True will use online hard sample training',
         required=True
     )
+    parser.add_argument(
+        '--num-back',
+        type=int,
+        help='Number of samples to backprop',
+        required=True
+    )
+    parser.add_argument(
+        '--initial-epoch',
+        type=int,
+        help='Use this when resuming training',
+        required=True
+    )
+    parser.add_argument(
+        '--model',
+        type=str,
+        help='Use this when resuming training',
+        default=None
+    )
     args = parser.parse_args()
+    models_dir = args.models_directory
 
     # Load training data
     x_train = np.load(args.data_folder + '/train/images.npy').astype(np.float32)
     num_train = x_train.shape[0]
     x_train = x_train[:, :, :, ::-1] # Convert images from bgr to rgb
-    x_train = x_train / 255 # Convert images from integer [0, 255] to float [0, 1)
+    x_train = x_train / 255 # Convert images from integer [0, 255] to float [0, 1]
     mean_x_train = tf.math.reduce_mean(x_train, axis=0, keepdims=True) # Compute the mean image to make the images zero centered (kind of) later
     y1_train = np.load(args.data_folder + '/train/class_labels.npy').astype(np.float32)
     y2_train = np.load(args.data_folder + '/train/bounding_box_labels.npy').astype(np.float32)
@@ -76,7 +102,7 @@ def main():
     # Load validation data
     x_validation = np.load(args.data_folder + './validation/images.npy')
     x_validation = x_validation[:, :, :, ::-1] # Convert images from bgr to rgb
-    x_validation = x_validation / 255 # Convert images from integer [0, 255] to float [0, 1)
+    x_validation = x_validation / 255 # Convert images from integer [0, 255] to float [0, 1]
     x_validation = x_validation - mean_x_train # Zero center the images
     y1_validation = np.load(args.data_folder + './validation/class_labels.npy').astype(np.float32)
     y2_validation = np.load(args.data_folder + './validation/bounding_box_labels.npy').astype(np.float32)
@@ -93,56 +119,73 @@ def main():
     )
 
     # Model checkpoints
+    if not path.exists(models_dir):
+        os.makedirs(models_dir)
     model_checkpoint = ModelCheckpoint(
-        filepath=args.models_directory,
+        filepath=models_dir + '/epoch_{epoch:04d}_val_loss_{val_loss:.4f}.hdf5',
         monitor='val_loss',
         save_best_only=True,
-        mode='min',
-        save_weights_only=True,
-        save_freq='epoch'
+        mode='min'
     )
 
     # Learning rate decay
     lr_decay = ReduceLROnPlateau(
         monitor='val_loss',
-        factor=0.1,
+        factor=0.2,
         patience=args.lr_decay,
-        mode='min'
+        mode='min',
+        min_delta=0.1
     )
 
     # Set up Tensorboard
-    if not path.exists('./log'):
-        os.mkdir('./log')
+    if not path.exists(models_dir + '/log'):
+        os.mkdir(models_dir + '/log')
     tensorboard = TensorBoard(
-        log_dir="./log/" + datetime.now(tz.gettz('UTC+7')).strftime("%Y-%m-%d_%H-%M-%S-%p"),
+        log_dir=models_dir + '/log',
         write_graph=False,
-        profile_batch=0
+        profile_batch=0,
+        update_freq=50
     )
 
-    if args.hard_sample_mining == True:
-        num_back = round(args.batch_size * 0.7)
+    # Check whether we are resuming training or not
+    if args.initial_epoch > 0:
+        # Pick up where we left off
+        if args.hard_sample_mining == True:
+            loss1_name = 'BCE_with_sti_and_hsm'
+            loss2_name = 'MSE_with_sti_and_hsm'
+        else:
+            loss1_name = 'BCE_with_sample_type_indicator'
+            loss2_name = 'MSE_with_sample_type_indicator'
+        model = tf.keras.models.load_model(
+            filepath=models_dir + '/' + args.model,
+            custom_objects={
+                loss1_name: BCE_with_sti(args.hard_sample_mining, args.num_back),
+                loss2_name: MSE_with_sti(args.hard_sample_mining, args.num_back),
+                '_accuracy': accuracy_(),
+                'recall': recall_()
+            }
+        )
     else:
-        num_back = None
-
-    # Load and compile the model
-    model = pnet(batch_size=args.batch_size)
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(),
-        loss=[
-            BCE_with_sti(args.hard_sample_mining, num_back),
-            MSE_with_sti(args.hard_sample_mining, num_back),
-            MSE_with_sti(args.hard_sample_mining, num_back)
-        ],
-        metrics=[[accuracy_(), recall_()], None, None]
-        loss_weights=[1, 0.5, 0.5]
-    )
+        # Create and compile the model from scratch
+        model = pnet(batch_size=args.batch_size)
+        model.compile(
+            optimizer=tf.keras.optimizers.Adam(learning_rate=args.learning_rate),
+            loss=[
+                BCE_with_sti(args.hard_sample_mining, args.num_back),
+                MSE_with_sti(args.hard_sample_mining, args.num_back),
+                MSE_with_sti(args.hard_sample_mining, args.num_back)
+            ],
+            metrics=[[accuracy_(), recall_()], None, None],
+            loss_weights=[1, 0.5, 0.5]
+        )
 
     # Train the model
     history = model.fit(
         x=train_dataset,
-        epochs=num_epochs,
+        epochs=args.num_epochs,
         callbacks=[early_stopping, model_checkpoint, lr_decay, tensorboard],
-        validation_data=validation_dataset
+        validation_data=validation_dataset,
+        initial_epoch=args.initial_epoch
     )
 
 if __name__ == "__main__":

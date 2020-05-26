@@ -1,3 +1,4 @@
+import tensorflow as tf
 from tensorflow.math import reduce_sum
 from tensorflow.keras.losses import binary_crossentropy, MSE
 
