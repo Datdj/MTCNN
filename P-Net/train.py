@@ -110,13 +110,13 @@ def main():
     train_dataset = train_dataset.map(augment_and_zero_center(mean=mean_x_train))
 
     # Load validation data
-    x_validation = np.load(args.data_folder + './validation/images.npy')
+    x_validation = np.load(args.data_folder + '/validation/images.npy')
     x_validation = x_validation[:, :, :, ::-1] # Convert images from bgr to rgb
     x_validation = x_validation / 255 # Convert images from integer [0, 255] to float [0, 1]
     x_validation = x_validation - mean_x_train # Zero center the images
-    y1_validation = np.load(args.data_folder + './validation/class_labels.npy').astype(np.float32)
-    y2_validation = np.load(args.data_folder + './validation/bounding_box_labels.npy').astype(np.float32)
-    y3_validation = np.load(args.data_folder + './validation/landmark_labels.npy').astype(np.float32)
+    y1_validation = np.load(args.data_folder + '/validation/class_labels.npy').astype(np.float32)
+    y2_validation = np.load(args.data_folder + '/validation/bounding_box_labels.npy').astype(np.float32)
+    y3_validation = np.load(args.data_folder + '/validation/landmark_labels.npy').astype(np.float32)
 
     # Create validation dataset
     validation_dataset = Dataset.from_tensor_slices((x_validation, (y1_validation, y2_validation, y3_validation))).batch(args.batch_size, drop_remainder=True)
