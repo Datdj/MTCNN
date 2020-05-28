@@ -58,8 +58,8 @@ def main():
     )
     parser.add_argument(
         '--hard-sample-mining',
-        type=bool,
-        help='True will use online hard sample training',
+        type=int,
+        help='hard-sample-mining=1 will use online hard sample training',
         required=True
     )
     parser.add_argument(
@@ -80,8 +80,18 @@ def main():
         help='Use this when resuming training',
         default=None
     )
+    parser.add_argument(
+        '--log-frequency',
+        type=str,
+        help='The frequency at which to log. It can be "epoch" or "batch" or integer',
+        required=True
+    )
     args = parser.parse_args()
     models_dir = args.models_directory
+    if args.log_frequency != 'epoch' and args.log_frequency != 'batch':
+        log_frequency = int(args.log_frequency)
+    else:
+        log_frequency = args.log_frequency
 
     # Load training data
     x_train = np.load(args.data_folder + '/train/images.npy').astype(np.float32)
@@ -144,13 +154,13 @@ def main():
         log_dir=models_dir + '/log',
         write_graph=False,
         profile_batch=0,
-        update_freq=50
+        update_freq=log_frequency
     )
 
     # Check whether we are resuming training or not
     if args.initial_epoch > 0:
         # Pick up where we left off
-        if args.hard_sample_mining == True:
+        if args.hard_sample_mining == 1:
             loss1_name = 'BCE_with_sti_and_hsm'
             loss2_name = 'MSE_with_sti_and_hsm'
         else:
