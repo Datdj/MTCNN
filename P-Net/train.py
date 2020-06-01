@@ -46,9 +46,15 @@ def main():
         required=True
     )
     parser.add_argument(
-        '--lr-decay',
+        '--lr-decay-patience',
         type=int,
-        help='After n epochs, if validation loss does not improve, reduce learning rate'
+        help='After n epochs, if validation loss does not improve, reduce the learning rate',
+        required=True
+    )
+    parser.add_argument(
+        '--lr-decay-min-delta',
+        type=float,
+        help='After some epochs, if validation loss does not decrease at least min_delta, reduce the learning rate'
     )
     parser.add_argument(
         '--models-directory',
@@ -142,9 +148,9 @@ def main():
     lr_decay = ReduceLROnPlateau(
         monitor='val_loss',
         factor=0.2,
-        patience=args.lr_decay,
+        patience=args.lr_decay_patience,
         mode='min',
-        min_delta=0.1
+        min_delta=args.lr_decay_min_delta
     )
 
     # Set up Tensorboard
