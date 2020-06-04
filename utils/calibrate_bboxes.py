@@ -1,6 +1,17 @@
 import numpy as np
 
 def calibrate(bboxes):
+    """
+    This function will calibrate bounding boxes using the predicted bounding box.
+    Args:
+    - bboxes: ndarray of shape (n, 4) containing n bounding boxes. Each bounding
+    box is a vector with the structure (x, y, width, height) where x, y is the
+    coordinates of the top left point. The values of the coordinates are in the
+    range [0, 1].
+
+    Return:
+    ndarray of shape (n, 3) containing n calibrated bounding boxes.
+    """
     # Fix some bad coordinates
     calibrated_bboxes = np.clip(bboxes, 0, 1)
     bad_x_indices = calibrated_bboxes[:, 0] + calibrated_bboxes[:, 2] > 1
