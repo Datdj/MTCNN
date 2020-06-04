@@ -3,7 +3,7 @@ sys.path.insert(0, '..')
 import argparse
 import numpy as np
 import tensorflow as tf
-from utils.data_augmentation import augment_and_zero_center
+from utils.data_augmentation import augment
 from tensorflow.data import Dataset
 from model import pnet
 from utils.losses import BCE_with_sti, MSE_with_sti
@@ -75,18 +75,6 @@ def main():
         required=True
     )
     parser.add_argument(
-        '--initial-epoch',
-        type=int,
-        help='Use this when resuming training',
-        required=True
-    )
-    parser.add_argument(
-        '--model',
-        type=str,
-        help='Use this when resuming training',
-        default=None
-    )
-    parser.add_argument(
         '--log-frequency',
         type=str,
         help='The frequency at which to log. It can be "epoch" or "batch" or integer',
@@ -113,13 +101,12 @@ def main():
     # Create data pipeline
     train_dataset = Dataset.from_tensor_slices((x_train, (y1_train, y2_train, y3_train)))
     train_dataset = train_dataset.shuffle(num_train).batch(args.batch_size, drop_remainder=True)
-    train_dataset = train_dataset.map(augment_and_zero_center(mean=mean_x_train))
+    train_dataset = train_dataset.map(augment)
 
     # Load validation data
     x_validation = np.load(args.data_folder + '/validation/images.npy')
     x_validation = x_validation[:, :, :, ::-1] # Convert images from bgr to rgb
     x_validation = x_validation / 255 # Convert images from integer [0, 255] to float [0, 1]
-    x_validation = x_validation - mean_x_train # Zero center the images
     y1_validation = np.load(args.data_folder + '/validation/class_labels.npy').astype(np.float32)
     y2_validation = np.load(args.data_folder + '/validation/bounding_box_labels.npy').astype(np.float32)
     y3_validation = np.load(args.data_folder + '/validation/landmark_labels.npy').astype(np.float32)
@@ -141,6 +128,7 @@ def main():
         filepath=models_dir + '/epoch_{epoch:04d}_val_loss_{val_loss:.4f}.hdf5',
         monitor='val_loss',
         save_best_only=True,
+        save_weights_only=True,
         mode='min'
     )
 
@@ -163,45 +151,25 @@ def main():
         update_freq=log_frequency
     )
 
-    # Check whether we are resuming training or not
-    if args.initial_epoch > 0:
-        # Pick up where we left off
-        if args.hard_sample_mining == 1:
-            loss1_name = 'BCE_with_sti_and_hsm'
-            loss2_name = 'MSE_with_sti_and_hsm'
-        else:
-            loss1_name = 'BCE_with_sample_type_indicator'
-            loss2_name = 'MSE_with_sample_type_indicator'
-        model = tf.keras.models.load_model(
-            filepath=models_dir + '/' + args.model,
-            custom_objects={
-                loss1_name: BCE_with_sti(args.hard_sample_mining, args.num_back),
-                loss2_name: MSE_with_sti(args.hard_sample_mining, args.num_back),
-                '_accuracy': accuracy_(),
-                'recall': recall_()
-            }
-        )
-    else:
-        # Create and compile the model from scratch
-        model = pnet(batch_size=args.batch_size)
-        model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=args.learning_rate),
-            loss=[
-                BCE_with_sti(args.hard_sample_mining, args.num_back),
-                MSE_with_sti(args.hard_sample_mining, args.num_back),
-                MSE_with_sti(args.hard_sample_mining, args.num_back)
-            ],
-            metrics=[[accuracy_(), recall_()], None, None],
-            loss_weights=[1, 0.5, 0.5]
-        )
+    # Create and compile the model from scratch
+    model = pnet(mean_x_train)
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=args.learning_rate),
+        loss=[
+            BCE_with_sti(args.hard_sample_mining, args.num_back),
+            MSE_with_sti(args.hard_sample_mining, args.num_back),
+            MSE_with_sti(args.hard_sample_mining, args.num_back)
+        ],
+        metrics=[[accuracy_(), recall_()], None, None],
+        loss_weights=[1, 0.5, 0.5]
+    )
 
     # Train the model
     history = model.fit(
         x=train_dataset,
         epochs=args.num_epochs,
         callbacks=[early_stopping, model_checkpoint, lr_decay, tensorboard],
-        validation_data=validation_dataset,
-        initial_epoch=args.initial_epoch
+        validation_data=validation_dataset
     )
 
 if __name__ == "__main__":
