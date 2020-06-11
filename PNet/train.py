@@ -88,28 +88,22 @@ def main():
         log_frequency = args.log_frequency
 
     # Load training data
-    x_train = np.load(args.data_folder + '/train/images.npy').astype(np.float32)
-    num_train = x_train.shape[0]
-    x_train = x_train[:, :, :, ::-1] # Convert images from bgr to rgb
-    x_train = x_train / 255 # Convert images from integer [0, 255] to float [0, 1]
-    mean_x_train = tf.math.reduce_mean(x_train, axis=0, keepdims=True) # Compute the mean image to make the images zero centered (kind of) later
-    y1_train = np.load(args.data_folder + '/train/class_labels.npy').astype(np.float32)
-    y2_train = np.load(args.data_folder + '/train/bounding_box_labels.npy').astype(np.float32)
-    y3_train = np.load(args.data_folder + '/train/landmark_labels.npy').astype(np.float32)
-    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, (y1_train, y2_train, y3_train)))
+    x_train = np.load(args.data_folder + '/train/images.npy')
+    y1_train = np.load(args.data_folder + '/train/class_labels.npy')
+    y2_train = np.load(args.data_folder + '/train/bounding_box_labels.npy')
+    y3_train = np.load(args.data_folder + '/train/landmark_labels.npy')
 
-    # Create data pipeline
+    # Create a data pipeline
     train_dataset = Dataset.from_tensor_slices((x_train, (y1_train, y2_train, y3_train)))
-    train_dataset = train_dataset.shuffle(num_train).batch(args.batch_size, drop_remainder=True)
+    train_dataset = train_dataset.shuffle(x_train.shape[0]).batch(args.batch_size, drop_remainder=True)
     train_dataset = train_dataset.map(augment)
 
     # Load validation data
     x_validation = np.load(args.data_folder + '/validation/images.npy')
-    x_validation = x_validation[:, :, :, ::-1] # Convert images from bgr to rgb
-    x_validation = x_validation / 255 # Convert images from integer [0, 255] to float [0, 1]
-    y1_validation = np.load(args.data_folder + '/validation/class_labels.npy').astype(np.float32)
-    y2_validation = np.load(args.data_folder + '/validation/bounding_box_labels.npy').astype(np.float32)
-    y3_validation = np.load(args.data_folder + '/validation/landmark_labels.npy').astype(np.float32)
+    x_validation = np.add(x_validation, -127.5, dtype=np.float32) / 127.5
+    y1_validation = np.load(args.data_folder + '/validation/class_labels.npy')
+    y2_validation = np.load(args.data_folder + '/validation/bounding_box_labels.npy')
+    y3_validation = np.load(args.data_folder + '/validation/landmark_labels.npy')
 
     # Create validation dataset
     validation_dataset = Dataset.from_tensor_slices((x_validation, (y1_validation, y2_validation, y3_validation))).batch(args.batch_size, drop_remainder=True)
@@ -122,8 +116,6 @@ def main():
     )
 
     # Model checkpoints
-    if not path.exists(models_dir):
-        os.makedirs(models_dir)
     model_checkpoint = ModelCheckpoint(
         filepath=models_dir + '/epoch_{epoch:04d}_val_loss_{val_loss:.4f}.hdf5',
         monitor='val_loss',
@@ -142,8 +134,6 @@ def main():
     )
 
     # Set up Tensorboard
-    if not path.exists(models_dir + '/log'):
-        os.mkdir(models_dir + '/log')
     tensorboard = TensorBoard(
         log_dir=models_dir + '/log',
         write_graph=False,
@@ -152,7 +142,7 @@ def main():
     )
 
     # Create and compile the model from scratch
-    model = pnet(mean_x_train)
+    model = pnet()
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=args.learning_rate),
         loss=[
@@ -163,6 +153,12 @@ def main():
         metrics=[[accuracy_(), recall_()], None, None],
         loss_weights=[1, 0.5, 0.5]
     )
+
+    # Create folders
+    if not path.exists(models_dir):
+        os.makedirs(models_dir)
+    if not path.exists(models_dir + '/log'):
+        os.mkdir(models_dir + '/log')
 
     # Train the model
     history = model.fit(

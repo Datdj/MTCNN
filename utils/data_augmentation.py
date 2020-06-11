@@ -24,14 +24,15 @@ def augment(images, labels):
     batch_size = images.shape[0]
 
     # Randomly flip the images horizontaly
-    random_indices = tf.where(tf.random.uniform([batch_size], 0, 2, tf.int32))
-    # Randomly flip the images
+    random_indices = tf.where(tf.random.uniform(shape=[batch_size], minval=0, maxval=2, dtype=tf.int32))
     images = tf.tensor_scatter_nd_update(images, random_indices, tf.image.flip_left_right(tf.gather_nd(images, random_indices)))
+    
     # Randomly flip the bounding boxes
     random_bb = tf.gather_nd(bboxes, random_indices)
     flipped_bb_x = (1 - random_bb[:, 1] - random_bb[:, 3]) * random_bb[:, 0]
     flipped_bb = tf.concat([tf.reshape(random_bb[:, 0], [-1, 1]), tf.reshape(flipped_bb_x, [-1, 1]), random_bb[:, 2:]], axis=1)
     bboxes = tf.tensor_scatter_nd_update(bboxes, random_indices, flipped_bb)
+    
     # Randomly flip the landmarks
     random_lm = tf.gather_nd(landmarks, random_indices)
     flipped_lm_xs = (1 - random_lm[:, 1::2]) * tf.reshape(random_lm[:, 0], [-1, 1])
@@ -54,19 +55,22 @@ def augment(images, labels):
     landmarks = tf.tensor_scatter_nd_update(landmarks, random_indices, flipped_lm)
 
     # Randomly adjust the hue
-    random_indices = tf.where(tf.random.uniform([batch_size], 0, 2, tf.int32))
+    random_indices = tf.where(tf.random.uniform(shape=[batch_size], minval=0, maxval=2, dtype=tf.int32))
     images = tf.tensor_scatter_nd_update(images, random_indices, tf.image.random_hue(tf.gather_nd(images, random_indices), 0.02))
 
     # Randomly adjust the saturation
-    random_indices = tf.where(tf.random.uniform([batch_size], 0, 2, tf.int32))
+    random_indices = tf.where(tf.random.uniform(shape=[batch_size], minval=0, maxval=2, dtype=tf.int32))
     images = tf.tensor_scatter_nd_update(images, random_indices, tf.image.random_saturation(tf.gather_nd(images, random_indices), 0.95, 1.05))
 
     # Randomly adjust the contrast
-    random_indices = tf.where(tf.random.uniform([batch_size], 0, 2, tf.int32))
-    images = tf.tensor_scatter_nd_update(images, random_indices, tf.clip_by_value(tf.image.random_contrast(tf.gather_nd(images, random_indices), 0.95, 1.05), 0, 1))
+    random_indices = tf.where(tf.random.uniform(shape=[batch_size], minval=0, maxval=2, dtype=tf.int32))
+    images = tf.tensor_scatter_nd_update(images, random_indices, tf.image.random_contrast(tf.gather_nd(images, random_indices), 0.95, 1.05))
 
     # Randomly adjust the brightness
-    random_indices = tf.where(tf.random.uniform([batch_size], 0, 2, tf.int32))
-    images = tf.tensor_scatter_nd_update(images, random_indices, tf.clip_by_value(tf.image.random_brightness(tf.gather_nd(images, random_indices), 0.05), 0, 1))
+    random_indices = tf.where(tf.random.uniform(shape=[batch_size], minval=0, maxval=2, dtype=tf.int32))
+    images = tf.tensor_scatter_nd_update(images, random_indices, tf.image.random_brightness(tf.gather_nd(images, random_indices), 0.05))
+
+    # Normalize the images
+    images = (tf.cast(images, tf.float32) - 127.5) / 127.5
 
     return (images, (labels[0], bboxes, landmarks))
