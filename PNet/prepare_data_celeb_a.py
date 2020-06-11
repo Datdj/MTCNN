@@ -1,7 +1,6 @@
 import argparse
 import cv2
 import numpy as np
-import pandas as pd
 from os import path
 import os
 from tqdm import tqdm
@@ -42,33 +41,12 @@ def main():
 
     rng = default_rng()
 
-    # # Show some images with their respective bounding boxes
-    # f = open(args.bounding_boxes)
-    # f.readline()
-    # f.readline()
-    # for i in range(50):
-    #     test = f.readline()
-    #     name = test.split()[0]
-    #     bbox = np.array(test.split()[1:], np.int32)
-    #     img = cv2.imread(args.images_directory + '/' + name)
-    #     cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[0] + bbox[2] - 1, bbox[1] + bbox[3] -1), (0, 255, 0))
-    #     cv2.imshow('test', img)
-    #     cv2.waitKey(0)
-    #     cv2.destroyAllWindows()
-    # f.close()
-
     # Prepare saving folder
     if not path.exists(args.output_directory):
         os.makedirs(args.output_directory)
-    if not path.exists(args.output_directory + '/landmarks'):
-        os.mkdir(args.output_directory + '/landmarks')
 
     # Use this to save images as numpy file
-    lm_images = np.zeros((0, 12, 12, 3), np.uint8)
-
-    # Save the original windows
-    lm_origin_windows = np.zeros((0, 3), np.int32)
-    lm_origin_names = []
+    lm_images = list()
 
     # Open the annotation files
     bb = open(args.bounding_boxes)
@@ -83,7 +61,7 @@ def main():
     lm.readline()
 
     # Start creating landmark faces
-    norm_landmarks = np.zeros((0, 10))
+    norm_landmarks = list()
     for i in tqdm(range(num_faces)):
 
         # Read the annotation files line by line
@@ -123,47 +101,28 @@ def main():
             continue
         
         # Read the image
-        img = cv2.imread(args.images_directory + '/' + bb_line[0])
+        img = cv2.imread(args.images_directory + '/' + bb_line[0])[:, :, ::-1]
 
         # Resize the window to 12 x 12
         resized_window = cv2.resize(
             src=img[window[1]:window[1] + window[2], window[0]:window[0] + window[2], :],
-            dsize=(12, 12),
-            interpolation=cv2.INTER_AREA
+            dsize=(12, 12)
         )
 
-        # Save the image
-        lm_images = np.concatenate((lm_images, resized_window.reshape((1, 12, 12, 3))), 0)
-        lm_origin_windows = np.concatenate((lm_origin_windows, window.reshape((1, 3))), axis=0)
-        lm_origin_names.append(bb_line[0])
-        cv2.imwrite(
-            filename=args.output_directory + '/landmarks/' + bb_line[0],
-            img=resized_window
-        )
+        lm_images.append(resized_window)
 
         # Normalize the landmarks coordinates
-        norm_landmarks = np.vstack((norm_landmarks, ((landmarks - window[:2]) / (window[2] - 1)).reshape(10)))
+        norm_landmarks.append(np.divide(landmarks - window[:2], window[2], dtype=np.float32).reshape(10))
 
     # Close the annotation files
     bb.close()
     lm.close()
 
     # Save the images
-    np.save(args.output_directory + '/lm_images.npy', lm_images)
+    np.save(args.output_directory + '/lm_images.npy', np.asarray(lm_images))
 
-    # Save the original windows and file names
-    pd.DataFrame(
-        data={
-            'file_name': lm_origin_names,
-            'x': lm_origin_windows[:, 0],
-            'y': lm_origin_windows[:, 1],
-            'window_size': lm_origin_windows[:, 2]
-        }
-    ).to_excel(args.output_directory + '/lm_origin.xlsx')
-
-    # Save the normalized landmarks into an excel and numpy file
-    np.save(args.output_directory + '/landmarks.npy', norm_landmarks)
-    pd.DataFrame(norm_landmarks).to_excel(args.output_directory + '/landmarks.xlsx')
+    # Save the normalized landmarks into a numpy file
+    np.save(args.output_directory + '/landmarks.npy', np.asarray(norm_landmarks))
 
 # An attempt at making the codes above look like less of a mess :v
 def helper(x1, x2, nose, delta, crop_size, rng):
