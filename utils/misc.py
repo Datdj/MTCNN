@@ -21,12 +21,6 @@ def find_iou(window, bboxes):
         union = bboxes[:, 2] * bboxes[:, 3] + window[2] ** 2 - intersection
     else:
         raise ValueError('bboxes.shape[1] must be 3 or 4, but got ' + str(bboxes.shape[1]) + ' instead.')
-    if np.count_nonzero(union == 0) > 0:
-        print('\nfail')
-        print(window)
-        print(bboxes[union == 0])
-        print(intersection[union == 0])
-        exit()
     return intersection / union
 
 def find_iou_bulk(windows, bboxes):
@@ -77,6 +71,34 @@ def create_bbr_annotation(window, ground_truth):
     # Return result
     return np.divide(np.asarray([x, y, width, height]), window[2], dtype=np.float32)
 
+def create_bbr_annotation_v2(window, ground_truth):
+    """
+    Create bounding box regression annotation
+    Args:
+    - window: (3,) ndarray
+    - ground_truth: (4,) ndarray
+    Return: (4,) ndarray [y1, x1, y2, x2]
+    """
+
+    # print(window)
+    # print(ground_truth)
+    y1_x1 = np.maximum(window[:2], ground_truth[:2]) - window[:2]
+    y2_x2 = np.minimum(window[:2] + window[2], ground_truth[:2] + ground_truth[2:]) - window[:2]
+    return np.divide(np.concatenate((y1_x1, y2_x2)), window[2], dtype=np.float32)
+
+def create_bbr_annotation_v2_bulk(windows, ground_truth):
+    """
+    Create bounding box regression annotations
+    Args:
+    - windows: 2d array (n, 3)
+    - ground_truth: 2d array (n, 4)
+    Return: 2d array (n, 4)
+    """
+
+    y1_x1 = np.maximum(windows[:, :2], ground_truth[:, :2]) - windows[:, :2]
+    y2_x2 = np.minimum(windows[:, :2] + windows[:, 2:], ground_truth[:, :2] + ground_truth[:, 2:]) - windows[:, :2]
+    return np.divide(np.concatenate((y1_x1, y2_x2), axis=1), windows[:, 2:], dtype=np.float32)
+
 def crop_and_resize(img, window, size):
     """
     Crop out the window and resize it to "size x size"
@@ -89,6 +111,60 @@ def crop_and_resize(img, window, size):
 
     # Crop the image
     cropped = img[window[1]:window[1] + window[2], window[0]:window[0] + window[2]]
+
+    # Resize if necessary
+    if window[2] != size:
+        return cv2.resize(cropped, (size, size))
+    
+    # Return cropped image
+    return cropped
+
+def crop_and_resize_v2(img, window, size):
+    """
+    Crop out the window and resize it to "size x size"
+    Args:
+    - img: the image
+    - window: the window [y, x, window_size]
+    - size: 12, 24 or 48
+    Return: The cropped and resized image
+    """
+
+    pad_size = 0
+    # test = False
+
+    if window[0] < 0:
+        pad_size = max(-window[0], pad_size)
+
+    if window[1] < 0:
+        pad_size = max(-window[1], pad_size)
+        # print(window, img.shape)
+
+        # assert False
+
+    if window[0] + window[2] > img.shape[0]:
+        pad_size = max(window[0] + window[2] - img.shape[0], pad_size)
+        # test = True
+        # print(window, img.shape)
+        # assert False
+
+    if window[1] + window[2] > img.shape[1]:
+        pad_size = max(window[1] + window[2] - img.shape[1], pad_size)
+        # test = True
+        # print(window, img.shape)
+        # assert False
+
+    # Pad the image
+    if pad_size > 0:
+        # if test == True:
+        #     print(window, img.shape)
+        img = np.pad(img, ((pad_size, pad_size), (pad_size, pad_size), (0, 0)))
+        window[:2] = window[:2] + pad_size
+        # if test == True:
+        #     print(window, img.shape)
+        #     assert False
+
+    # Crop the image
+    cropped = img[window[0]:window[0] + window[2], window[1]:window[1] + window[2]]
 
     # Resize if necessary
     if window[2] != size:
