@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+# import time
 
 def find_iou(window, bboxes):
     """
@@ -172,3 +173,38 @@ def crop_and_resize_v2(img, window, size):
     
     # Return cropped image
     return cropped
+
+def check_landmarks(windows, landmarks):
+    """
+    Return windows that have all the landmarks inside.
+    Args:
+    - windows: (n, 3) ndarray
+    - landmarks: (5, 2) ndarray
+    Return:
+    - lm_windows: (m, 3)
+    """
+    
+    # The landmarks have to be inside windows and at least a margin away from the edges of that window 
+    margin = (windows[:, 2] // 10)
+    # print(type(margin))
+    # print(margin.shape)
+    # print(margin.dtype)
+    # print(margin)
+
+    # windows_ is the smaller windows when we cut the margin off
+    windows_ = np.zeros_like(windows)
+    windows_[:, :2] = windows[:, :2] + margin.reshape((-1, 1))
+    windows_[:, 2] = windows[:, 2] - 2 * margin
+    # print(windows, windows_)
+
+    # tic = time.time()
+    result = []
+    for i, window_ in enumerate(windows_):
+        if np.count_nonzero(np.min(landmarks, 0) < window_[:2]) == 0 and np.count_nonzero(np.max(landmarks, 0) > window_[:2] + window_[2] - 1) == 0:
+            result.append(windows[i])
+            # print(window_)
+            # print(windows[i])
+    # toc = time.time()
+    # print(toc - tic)
+
+    return np.asarray(result)

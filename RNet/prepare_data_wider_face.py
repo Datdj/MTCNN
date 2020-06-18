@@ -7,12 +7,9 @@ from os import path
 import os
 from numpy.random import default_rng
 from tqdm import tqdm
-from utils.calibrate_bboxes import get_calibrated_windows
-from utils.nms import non_max_suppression
 from utils.misc import find_iou_bulk, create_bbr_annotation_v2_bulk, crop_and_resize_v2
 from PNet.model import pnet_predict
 import tensorflow as tf
-import time
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 def get_arguments():

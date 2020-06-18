@@ -16,8 +16,8 @@ def calibrate_and_nms(input_tensors):
     """
 
     # Parse the input
-    class_scores = input_tensors[0][0, :, :, 0] # shape (n,)
-    bbox_scores = input_tensors[1][0] # shape (n, 4)
+    class_scores = input_tensors[0][0, :, :, 0] # shape (m, n,)
+    bbox_scores = input_tensors[1][0] # shape (m, n, 4)
 
     # Positive windows' indices (predicted of course)
     pos_indices = tf.where(class_scores >= 0.5)
