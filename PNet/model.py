@@ -75,3 +75,50 @@ def pnet_predict():
     output = Lambda(function=calibrate_and_nms, name='calibrate_and_nms')([output_1, output_2])
     model = Model(inputs=inputs, outputs=output)
     return model
+
+def calibrate_and_nms_v2(input_tensors):
+    """
+    This function will operate at the end of the model when predicting.
+    The codes are entirely written using tensorflow.
+    """
+
+    # Parse the input
+    class_scores = input_tensors[0][0, :, :, 0] # shape (m, n,)
+    bbox_scores = input_tensors[1][0] # shape (m, n, 4)
+
+    # Positive windows' indices (predicted of course)
+    pos_indices = tf.where(class_scores >= 0.5)
+
+    # Get the predicted bounding boxes of the positive windows
+    pred_bboxes = tf.gather_nd(bbox_scores, pos_indices)
+
+    # Get the calibrated windows' confidence
+    confidence = tf.gather_nd(class_scores, pos_indices)
+
+    # Calibrate
+    calibrated_bboxes_x1_y1 = pred_bboxes[:, :2]
+    calibrated_bboxes_y1_x1 = calibrated_bboxes_x1_y1[:, ::-1] * 12 + tf.cast(pos_indices, tf.float32) * 2
+    calibrated_bboxes_y2_x2 = calibrated_bboxes_y1_x1 + pred_bboxes[:, 2:][:, ::-1] * 12
+    calibrated_bboxes = tf.concat([calibrated_bboxes_y1_x1, calibrated_bboxes_y2_x2], axis=1)
+
+    # Non max suppression
+    selected_indices = tf.image.non_max_suppression(calibrated_bboxes, confidence, tf.shape(confidence)[0], 0.5)
+    selected_bboxes = tf.gather(calibrated_bboxes, selected_indices)
+    selected_confidence = tf.gather(confidence, selected_indices)
+
+    return selected_bboxes, selected_confidence
+
+def pnet_predict_v2():
+    inputs = Input(shape=(None, None, 3), name='inputs')
+    conv_1 = Conv2D(filters=10, kernel_size=(3, 3), kernel_initializer='zeros', name='conv_1')(inputs)
+    prelu_1 = PReLU(shared_axes=[1, 2], name='prelu_1')(conv_1)
+    pool_1 = MaxPool2D(name='pool_1')(prelu_1)
+    conv_2 = Conv2D(filters=16, kernel_size=(3, 3), kernel_initializer='zeros', name='conv_2')(pool_1)
+    prelu_2 = PReLU(shared_axes=[1, 2], name='prelu_2')(conv_2)
+    conv_3 = Conv2D(filters=32, kernel_size=(3, 3), kernel_initializer='zeros', name='conv_3')(prelu_2)
+    prelu_3 = PReLU(shared_axes=[1, 2], name='prelu_3')(conv_3)
+    output_1 = Conv2D(filters=2, kernel_size=(1, 1), activation='softmax', kernel_initializer='zeros', name='output_1')(prelu_3)
+    output_2 = Conv2D(filters=4, kernel_size=(1, 1), kernel_initializer='zeros', name='output_2')(prelu_3)
+    output = Lambda(function=calibrate_and_nms_v2, name='calibrate_and_nms')([output_1, output_2])
+    model = Model(inputs=inputs, outputs=output)
+    return model
