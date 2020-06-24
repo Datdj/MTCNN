@@ -38,17 +38,17 @@ def augment(images, labels):
     flipped_lm_xs = (1 - random_lm[:, 1::2]) * tf.reshape(random_lm[:, 0], [-1, 1])
     flipped_lm = tf.concat(
         values=[
-            tf.reshape(random_lm[:, 0], [-1, 1]),
-            tf.reshape(flipped_lm_xs[:, 0], [-1, 1]),
-            tf.reshape(random_lm[:, 2], [-1, 1]),
-            tf.reshape(flipped_lm_xs[:, 1], [-1, 1]),
-            tf.reshape(random_lm[:, 4], [-1, 1]),
-            tf.reshape(flipped_lm_xs[:, 2], [-1, 1]),
-            tf.reshape(random_lm[:, 6], [-1, 1]),
-            tf.reshape(flipped_lm_xs[:, 3], [-1, 1]),
-            tf.reshape(random_lm[:, 8], [-1, 1]),
-            tf.reshape(flipped_lm_xs[:, 4], [-1, 1]),
-            tf.reshape(random_lm[:, 10], [-1, 1])
+            tf.reshape(random_lm[:, 0], [-1, 1]), # sample type indicator
+            tf.reshape(flipped_lm_xs[:, 1], [-1, 1]), # left eye x
+            tf.reshape(random_lm[:, 4], [-1, 1]), # left eye y
+            tf.reshape(flipped_lm_xs[:, 0], [-1, 1]), # right eye x
+            tf.reshape(random_lm[:, 2], [-1, 1]), # right eye y
+            tf.reshape(flipped_lm_xs[:, 2], [-1, 1]), # nose x
+            tf.reshape(random_lm[:, 6], [-1, 1]), # nose y
+            tf.reshape(flipped_lm_xs[:, 4], [-1, 1]), # left mouth x
+            tf.reshape(random_lm[:, 10], [-1, 1]), # left mouth y
+            tf.reshape(flipped_lm_xs[:, 3], [-1, 1]), # right mouth x
+            tf.reshape(random_lm[:, 8], [-1, 1]) # right mouth y
         ],
         axis=1
     )
@@ -114,16 +114,17 @@ def augment_v2(images, labels):
     flipped_lm_xs = (1 - random_lm[:, 2::2]) * tf.reshape(random_lm[:, 0], [-1, 1])
     flipped_lm = tf.concat(
         values=[
-            random_lm[:, :2],
-            tf.reshape(flipped_lm_xs[:, 0], [-1, 1]),
-            tf.reshape(random_lm[:, 3], [-1, 1]),
-            tf.reshape(flipped_lm_xs[:, 1], [-1, 1]),
-            tf.reshape(random_lm[:, 5], [-1, 1]),
-            tf.reshape(flipped_lm_xs[:, 2], [-1, 1]),
-            tf.reshape(random_lm[:, 7], [-1, 1]),
-            tf.reshape(flipped_lm_xs[:, 3], [-1, 1]),
-            tf.reshape(random_lm[:, 9], [-1, 1]),
-            tf.reshape(flipped_lm_xs[:, 4], [-1, 1]),
+            tf.reshape(random_lm[:, 0], [-1, 1]), # sample type indicator
+            tf.reshape(random_lm[:, 3], [-1, 1]), # left eye y
+            tf.reshape(flipped_lm_xs[:, 1], [-1, 1]), # left eye x
+            tf.reshape(random_lm[:, 1], [-1, 1]), # right eye y
+            tf.reshape(flipped_lm_xs[:, 0], [-1, 1]), # right eye x
+            tf.reshape(random_lm[:, 5], [-1, 1]), # nose y
+            tf.reshape(flipped_lm_xs[:, 2], [-1, 1]), # nose x
+            tf.reshape(random_lm[:, 9], [-1, 1]), # left mouth y
+            tf.reshape(flipped_lm_xs[:, 4], [-1, 1]), # left mouth x
+            tf.reshape(random_lm[:, 7], [-1, 1]), # right mouth y
+            tf.reshape(flipped_lm_xs[:, 3], [-1, 1]), # right mouth x
         ],
         axis=1
     )

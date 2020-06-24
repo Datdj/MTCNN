@@ -110,6 +110,9 @@ def main():
                 continue
             ground_truth[j] = face[:-14].split(' ')
 
+        # if i < 10000:
+        #     continue
+
         # if rng.random() > 0.01:
         #     continue
         # count += 1
@@ -163,11 +166,24 @@ def main():
             confidence.append(confidence_i)
 
             # Calculate the next scale
-            scale = scale * 0.7
+            scale = scale * 0.8
             h = round(height * scale)
             w = round(width * scale)
 
+        # if i == 4155:
+        #     print(c_bboxes)
+        #     exit()
+
         # Apply non maximum suppression one last time
+        # try:
+        #     c_bboxes = tf.concat(c_bboxes, axis=0)
+        # except:
+        #     print(i)
+        #     print(c_bboxes)
+        #     print(len(c_bboxes))
+        #     exit()
+        if len(c_bboxes) == 0:
+            continue
         c_bboxes = tf.concat(c_bboxes, axis=0)
         # print(c_bboxes.shape)
         confidence = tf.concat(confidence, axis=0)
@@ -304,7 +320,7 @@ def main():
             for bbox in par_windows:
                 # bb = matplotlib.patches.Rectangle(xy=(bbox[1], bbox[0]), width=bbox[2], height=bbox[2], fill=False, edgecolor='y')
                 # ax.add_patch(bb)
-                par_images.append(crop_and_resize_v2(img, bbox, 24))
+                par_images.append(crop_and_resize_v2(img, bbox, 48))
         #     print(par_windows)
         #     print(ground_truth)
         # print(np.count_nonzero(par_mask))
@@ -350,7 +366,7 @@ def main():
         #     exit()
 
         
-        if (i + 1) % 2000 == 0:
+        if (i + 1) % 1000 == 0:
 
             # Save the images
             pos_images = np.asarray(pos_images)
