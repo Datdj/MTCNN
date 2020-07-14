@@ -11,3 +11,5 @@ This is my attempt at trying to reproduce MTCNN, a joint face detection and alig
 ![test2](test2.png)
 ![test3](test3.png)
 ![test4](test4.png)
+# Contact
+Dat Nguyen nguyenxuandat1998@gmail.com
