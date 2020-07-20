@@ -13,3 +13,5 @@ This is my attempt at trying to reproduce MTCNN, a joint face detection and alig
 ![test4](test4.png)
 # Contact
 Dat Nguyen nguyenxuandat1998@gmail.com
+# Reference
+Kaipeng Zhang, Zhanpeng Zhang, Zhifeng Li, Yu Qiao , " Joint Face Detection and Alignment using Multi-task Cascaded Convolutional Networks," IEEE Signal Processing Letter
